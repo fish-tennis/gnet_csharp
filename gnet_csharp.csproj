@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net471</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <LangVersion>7.3</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Google.Protobuf" Version="3.20.3" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="Example\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Remove="Example\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Example\**" />
+    </ItemGroup>
+
+</Project>
