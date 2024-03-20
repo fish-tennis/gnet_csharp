@@ -8,7 +8,7 @@ namespace gnet_csharp
     {
         uint Len();
 
-        void ReadFrom(Span<byte> packetHeaderData);
+        void ReadFrom(byte[] packetHeaderData);
 
         void WriteTo(byte[] packetHeaderData);
     }
@@ -26,7 +26,7 @@ namespace gnet_csharp
     {
         public static readonly int DefaultPacketHeaderSize = 4;
         public static int MaxPacketDataSize = 0x00FFFFFF;
-        
+
         private uint m_LenAndFlags;
 
         public DefaultPacketHeader()
@@ -49,9 +49,9 @@ namespace gnet_csharp
             return Convert.ToByte(this.m_LenAndFlags >> 24);
         }
 
-        public void ReadFrom(Span<byte> packetHeaderData)
+        public void ReadFrom(byte[] packetHeaderData)
         {
-            m_LenAndFlags = BitConverter.ToUInt32(packetHeaderData.ToArray(), 0);
+            m_LenAndFlags = BitConverter.ToUInt32(packetHeaderData, 0);
         }
 
         public void WriteTo(byte[] packetHeaderData)

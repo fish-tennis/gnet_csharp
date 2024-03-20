@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 
@@ -33,9 +34,9 @@ namespace gnet_csharp
                 : new DefaultPacketHeader(Convert.ToUInt32(packetData.Length), 0);
         }
 
-        public static void TryWriteBytes(Span<byte> bytes, ushort v)
+        public static void TryWriteBytes(byte[] bytes, ushort v)
         {
-            var stream = new MemoryStream(bytes.ToArray());
+            var stream = new MemoryStream(bytes);
             var writer = new BinaryWriter(stream);
             writer.Write(v);
         }
@@ -57,8 +58,10 @@ namespace gnet_csharp
                 var protoMessageBytes = protoMessage.ToByteArray();
                 if (protoMessageBytes.Length != protoMessageLen)
                 {
-                    Console.WriteLine("ProtoLenErr protoMessageLen:"+protoMessageLen+" bytesCount:" + protoMessageBytes.Length);
+                    Console.WriteLine("ProtoLenErr protoMessageLen:" + protoMessageLen + " bytesCount:" +
+                                      protoMessageBytes.Length);
                 }
+
                 writer.Write(protoMessageBytes);
                 writer.Flush();
                 return stream.ToArray();
@@ -87,20 +90,18 @@ namespace gnet_csharp
                 return null;
             }
 
-            var fullBytes = data.AsSpan();
-            var headerBuffer = fullBytes.Slice(0, PacketHeaderSize());
             var packetHeader = new DefaultPacketHeader();
-            packetHeader.ReadFrom(headerBuffer);
-            var commandBuffer = fullBytes.Slice(PacketHeaderSize(), 2);
-            var command = BitConverter.ToUInt16(commandBuffer.ToArray(), 0);
-            Console.WriteLine("command:"+command);
+            packetHeader.ReadFrom(data);
+            var command = BitConverter.ToUInt16(data, PacketHeaderSize());
+            Console.WriteLine("command:" + command);
             var messageLen = Convert.ToInt32(packetHeader.Len()) - 2;
             if (messageLen <= 0)
             {
-                Console.WriteLine("messageLen:"+messageLen);
+                Console.WriteLine("messageLen:" + messageLen);
             }
-            var messageBuffer = fullBytes.Slice(PacketHeaderSize() + 2, messageLen);
-            if (!m_MessageDescriptors.Contains(command)) return new ProtoPacket(command, messageBuffer.ToArray());
+
+            var messageBuffer = data.Skip(PacketHeaderSize() + 2).Take(messageLen).ToArray();
+            if (!m_MessageDescriptors.Contains(command)) return new ProtoPacket(command, messageBuffer);
             var messageDescriptor = m_MessageDescriptors[command] as MessageDescriptor;
             var protoMessage = messageDescriptor.Parser.ParseFrom(messageBuffer);
             return new ProtoPacket(command, protoMessage);

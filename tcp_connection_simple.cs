@@ -24,45 +24,56 @@ namespace gnet_csharp
             m_ReadBuffer = new byte[m_Config.RecvBufferSize];
         }
 
+        public string GetHostAddress()
+        {
+            return m_HostAddress;
+        }
+
+        public ConnectionConfig GetConfig()
+        {
+            return m_Config;
+        }
+
         public bool Connect(string address)
         {
-            string[] ipPortStr = address.Split(':');
+            if (m_TcpClient != null)
+            {
+                Console.WriteLine("m_TcpClient not null:" + address);
+                return false;
+            }
+
+            var ipPortStr = address.Split(':');
             if (ipPortStr.Length != 2)
             {
-                Console.WriteLine("address err:"+address);
+                Console.WriteLine("address err:" + address);
                 return false;
             }
 
-            string host = ipPortStr[0];
+            var host = ipPortStr[0];
             var port = int.Parse(ipPortStr[1]);
-            IPAddress[] ipAddresses = Dns.GetHostAddresses(host);
+            var ipAddresses = Dns.GetHostAddresses(host);
             if (ipAddresses.Length == 0)
             {
-                Console.WriteLine("ipAddresses err:"+address);
+                Console.WriteLine("ipAddresses err:" + address);
                 return false;
             }
 
-            if (ipAddresses[0].AddressFamily == AddressFamily.InterNetworkV6)
-            {
-                m_TcpClient = new TcpClient(AddressFamily.InterNetworkV6);
-            }
-            else
-            {
-                m_TcpClient = new TcpClient(AddressFamily.InterNetwork);
-            }
+            m_TcpClient = ipAddresses[0].AddressFamily == AddressFamily.InterNetworkV6
+                ? new TcpClient(AddressFamily.InterNetworkV6)
+                : new TcpClient(AddressFamily.InterNetwork);
 
             m_TcpClient.SendTimeout = m_Config.WriteTimeout;
             m_TcpClient.ReceiveTimeout = m_Config.RecvTimeout;
             m_TcpClient.NoDelay = true;
             m_HostAddress = address;
-            Console.WriteLine("BeginConnect:"+address);
+            Console.WriteLine("BeginConnect:" + address);
             m_TcpClient.BeginConnect(host, port, OnAsyncConnect, this);
             return true;
         }
 
         private static void OnAsyncConnect(IAsyncResult asr)
         {
-            TcpConnectionSimple connection = (TcpConnectionSimple) asr.AsyncState;
+            var connection = (TcpConnectionSimple) asr.AsyncState;
             connection.OnConnected();
         }
 
@@ -76,18 +87,22 @@ namespace gnet_csharp
                 m_OutStream = m_TcpClient.GetStream();
                 Console.WriteLine("OnConnected");
                 m_IsConnected = true;
-                m_OutStream.BeginRead(m_ReadBuffer, m_ReadLength, m_ReadBuffer.Length - m_ReadLength, OnAsyncRead, this);
+                m_Config.OnConnected?.Invoke(this, true);
+                m_ReadLength = 0;
+                m_OutStream.BeginRead(m_ReadBuffer, m_ReadLength, m_ReadBuffer.Length - m_ReadLength, OnAsyncRead,
+                    this);
             }
             catch (Exception e)
             {
-                Console.WriteLine("OnConnected failed:" + e.Message);
+                Console.WriteLine("OnConnected failed:" + e);
+                m_Config.OnConnected?.Invoke(this, false);
                 Close();
             }
         }
 
         private static void OnAsyncRead(IAsyncResult asr)
         {
-            TcpConnectionSimple connection = (TcpConnectionSimple) asr.AsyncState;
+            var connection = (TcpConnectionSimple) asr.AsyncState;
             connection.OnRead(asr);
         }
 
@@ -105,23 +120,22 @@ namespace gnet_csharp
                 if (bytesRead <= 0)
                 {
                     Console.WriteLine("OnReadErr " + bytesRead);
-                    //包尺寸有问题，断线处理,服务器运行异常
                     Close();
                     return;
                 }
 
                 m_ReadLength += bytesRead;
-                Console.WriteLine("OnRead " + bytesRead);
+                // Console.WriteLine("OnRead " + bytesRead);
                 if (!decodePackets())
                 {
                     Close();
                     return;
                 }
 
-                //OnReceive(readBuffer, bytesRead);
                 lock (m_OutStream)
                 {
-                    m_OutStream.BeginRead(m_ReadBuffer, m_ReadLength, m_ReadBuffer.Length - m_ReadLength, OnAsyncRead, this);
+                    m_OutStream.BeginRead(m_ReadBuffer, m_ReadLength, m_ReadBuffer.Length - m_ReadLength, OnAsyncRead,
+                        this);
                 }
             }
             catch (Exception ex)
@@ -210,7 +224,7 @@ namespace gnet_csharp
 
         private static void onAsyncWrite(IAsyncResult asr)
         {
-            TcpConnectionSimple connection = (TcpConnectionSimple) asr.AsyncState;
+            var connection = (TcpConnectionSimple) asr.AsyncState;
             connection.onWrite(asr);
         }
 
@@ -219,14 +233,13 @@ namespace gnet_csharp
             try
             {
                 m_OutStream.EndWrite(asr);
-                Console.WriteLine("onAsyncWrite");
+                // Console.WriteLine("onAsyncWrite");
             }
             catch (Exception ex)
             {
-                Console.WriteLine("onAsyncWriteErr" + ex.Message);
+                Console.WriteLine("onWriteErr" + ex);
                 Close();
             }
         }
-        
     }
 }

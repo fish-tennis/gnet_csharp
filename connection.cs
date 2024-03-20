@@ -31,14 +31,23 @@ namespace gnet_csharp
         public int SendBufferSize;
         public int RecvBufferSize;
         public int MaxPacketSize;
-        
+
         /// TcpClient.ReceiveTimeout (millisecond)
         public int RecvTimeout;
+
+        /// <summary>
+        ///  seconds
+        /// </summary>
         public int HeartBeatInterval;
-        
+
         /// TcpClient.SendTimeout (millisecond)
         public int WriteTimeout;
+
         public ICodec Codec;
+
+        public delegate void OnConnectedDelegate(IConnection connection, bool success);
+
+        public OnConnectedDelegate OnConnected;
     }
 
     public class baseConnection
@@ -97,6 +106,7 @@ namespace gnet_csharp
                 {
                     return null;
                 }
+
                 return m_Packets.Dequeue();
             }
         }
