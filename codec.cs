@@ -13,13 +13,22 @@ namespace gnet_csharp
 
         IPacketHeader CreatePacketHeader(IConnection connection, IPacket packet, byte[] packetData);
 
+        /// <summary>
+        ///  encode a packet to stream data
+        /// </summary>
         byte[] Encode(IConnection connection, IPacket packet);
 
+        /// <summary>
+        /// decode a packet from stream data
+        /// </summary>
         IPacket Decode(IConnection connection, byte[] data);
     }
 
     public class SimpleProtoCodec : ICodec
     {
+        /// <summary>
+        /// map of Command and Protobuf MessageDescriptor
+        /// </summary>s
         private Hashtable m_MessageDescriptors = new Hashtable();
 
         public int PacketHeaderSize()
@@ -34,53 +43,25 @@ namespace gnet_csharp
                 : new DefaultPacketHeader(Convert.ToUInt32(packetData.Length), 0);
         }
 
-        public static void TryWriteBytes(byte[] bytes, ushort v)
-        {
-            var stream = new MemoryStream(bytes);
-            var writer = new BinaryWriter(stream);
-            writer.Write(v);
-        }
-
         public byte[] Encode(IConnection connection, IPacket packet)
         {
             var command = packet.Command();
             var protoMessage = packet.Message();
-            if (protoMessage != null)
+            var bodyData = protoMessage != null ? protoMessage.ToByteArray() : packet.GetStreamData();
+            var bodyDataLen = bodyData?.Length ?? 0;
+            var fullPacketData = new byte[PacketHeaderSize() + 2 + bodyDataLen];
+            var packetHeader = new DefaultPacketHeader(Convert.ToUInt32(2 + bodyDataLen), 0);
+            packetHeader.WriteTo(fullPacketData);
+            var stream = new MemoryStream(fullPacketData);
+            var writer = new BinaryWriter(stream);
+            writer.Seek(PacketHeaderSize(), SeekOrigin.Begin);
+            writer.Write(command);
+            if (bodyData != null)
             {
-                var protoMessageLen = protoMessage.CalculateSize();
-                var fullPacketData = new byte[PacketHeaderSize() + 2 + protoMessageLen];
-                var packetHeader = new DefaultPacketHeader(Convert.ToUInt32(2 + protoMessageLen), 0);
-                packetHeader.WriteTo(fullPacketData);
-                var stream = new MemoryStream(fullPacketData);
-                var writer = new BinaryWriter(stream);
-                writer.Seek(PacketHeaderSize(), SeekOrigin.Begin);
-                writer.Write(command);
-                var protoMessageBytes = protoMessage.ToByteArray();
-                if (protoMessageBytes.Length != protoMessageLen)
-                {
-                    Console.WriteLine("ProtoLenErr protoMessageLen:" + protoMessageLen + " bytesCount:" +
-                                      protoMessageBytes.Length);
-                }
-
-                writer.Write(protoMessageBytes);
-                writer.Flush();
-                return stream.ToArray();
+                writer.Write(bodyData);
             }
-            else
-            {
-                var streamData = packet.GetStreamData();
-                var streamDataLen = streamData.Length;
-                var fullPacketData = new byte[PacketHeaderSize() + 2 + streamDataLen];
-                var packetHeader = new DefaultPacketHeader(Convert.ToUInt32(2 + streamDataLen), 0);
-                packetHeader.WriteTo(fullPacketData);
-                var stream = new MemoryStream(fullPacketData);
-                var writer = new BinaryWriter(stream);
-                writer.Seek(PacketHeaderSize(), SeekOrigin.Begin);
-                writer.Write(command);
-                writer.Write(streamData);
-                writer.Flush();
-                return stream.ToArray();
-            }
+            writer.Flush();
+            return stream.ToArray();
         }
 
         public IPacket Decode(IConnection connection, byte[] data)
@@ -101,8 +82,11 @@ namespace gnet_csharp
             }
 
             var messageBuffer = data.Skip(PacketHeaderSize() + 2).Take(messageLen).ToArray();
-            if (!m_MessageDescriptors.Contains(command)) return new ProtoPacket(command, messageBuffer);
-            var messageDescriptor = m_MessageDescriptors[command] as MessageDescriptor;
+            var messageDescriptor = getMessageDescriptor(command);
+            if (messageDescriptor == null)
+            {
+                return new ProtoPacket(command, messageBuffer);
+            }
             var protoMessage = messageDescriptor.Parser.ParseFrom(messageBuffer);
             return new ProtoPacket(command, protoMessage);
         }
@@ -110,6 +94,13 @@ namespace gnet_csharp
         public void Register(ushort command, MessageDescriptor messageDescriptor)
         {
             m_MessageDescriptors[command] = messageDescriptor;
+        }
+
+        private MessageDescriptor getMessageDescriptor(ushort command)
+        {
+            if (m_MessageDescriptors.Contains(command))
+                return m_MessageDescriptors[command] as MessageDescriptor;
+            return null;
         }
     }
 }

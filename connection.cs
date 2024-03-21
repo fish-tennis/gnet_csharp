@@ -3,51 +3,79 @@ using Google.Protobuf;
 
 namespace gnet_csharp
 {
+    public delegate void OnConnectedDelegate(IConnection connection, bool success);
+    public delegate void OnCloseDelegate(IConnection connection);
+    
     public interface IConnection
     {
         int GetConnectionId();
 
         bool IsConnected();
 
-        object GetTag();
+        /// <summary>
+        /// user-defined object that bind the Connection
+        /// </summary>
+        object Tag { get; set; }
 
-        void SetTag(object tag);
+        ICodec Codec { get; set; }
+        
+        /// <summary>
+        /// callback of Connect operation
+        /// </summary>
+        OnConnectedDelegate OnConnected { get; set; }
+        
+        /// <summary>
+        /// callback of Close operation
+        /// </summary>
+        OnCloseDelegate OnClose { get; set; }
 
+        /// <summary>
+        /// connect to the host,it may be a asynchronous operation,
+        /// so use OnConnected to check if connected successful
+        /// </summary>
+        /// <param name="address">ip:port or url:port</param>
         bool Connect(string address);
-
+        
         bool Send(ushort command, IMessage message);
 
         bool SendPacket(IPacket packet);
-
-        ICodec GetCodec();
-
-        void SetCodec(ICodec codec);
 
         void Close();
     }
 
     public class ConnectionConfig
     {
+        /// <summary>
+        /// use for RingBuffer Codec
+        /// </summary>
         public int SendBufferSize;
+        
+        /// <summary>
+        /// the size of receive buffer,must not less than the biggest packet size in your project
+        /// </summary>
         public int RecvBufferSize;
+        
+        /// <summary>
+        /// the biggest packet size in your project
+        /// </summary>
         public int MaxPacketSize;
 
+        /// <summary>
         /// TcpClient.ReceiveTimeout (millisecond)
+        /// </summary>
         public int RecvTimeout;
 
         /// <summary>
-        ///  seconds
+        /// seconds of heartbeat interval
         /// </summary>
         public int HeartBeatInterval;
 
+        /// <summary>
         /// TcpClient.SendTimeout (millisecond)
+        /// </summary>
         public int WriteTimeout;
 
         public ICodec Codec;
-
-        public delegate void OnConnectedDelegate(IConnection connection, bool success);
-
-        public OnConnectedDelegate OnConnected;
     }
 
     public class baseConnection
@@ -55,8 +83,11 @@ namespace gnet_csharp
         protected int m_ConnectionId;
         protected ConnectionConfig m_Config;
         protected bool m_IsConnected;
-        protected ICodec m_Codec;
-        protected object m_Tag;
+        public ICodec Codec { get; set; }
+        public object Tag { get; set; }
+        public OnConnectedDelegate OnConnected { get; set; }
+        public OnCloseDelegate OnClose { get; set; }
+        
         protected Queue<IPacket> m_Packets = new Queue<IPacket>();
         protected object m_PacketsLock = new object();
 
@@ -68,26 +99,6 @@ namespace gnet_csharp
         public bool IsConnected()
         {
             return m_IsConnected;
-        }
-
-        public ICodec GetCodec()
-        {
-            return m_Codec;
-        }
-
-        public void SetCodec(ICodec c)
-        {
-            m_Codec = c;
-        }
-
-        public object GetTag()
-        {
-            return m_Tag;
-        }
-
-        public void SetTag(object obj)
-        {
-            m_Tag = obj;
         }
 
         public void PushPacket(IPacket packet)
@@ -111,7 +122,7 @@ namespace gnet_csharp
             }
         }
 
-        protected void clearPackets()
+        protected void ClearPackets()
         {
             lock (m_PacketsLock)
             {
