@@ -5,7 +5,7 @@ c# connector library for [gnet](https://github.com/fish-tennis/gnet)
 ```c#
 public class TestClient
     {
-        public TcpConnectionSimple m_Connection;
+        public TcpConnection m_Connection;
 
         public TestClient()
         {
@@ -15,9 +15,9 @@ public class TestClient
                 RecvTimeout = 1000,
                 WriteTimeout = 1000
             };
-            var codec = new SimpleProtoCodec();
+            var codec = new ProtoCodec();
             connectionConfig.Codec = codec;
-            m_Connection = new TcpConnectionSimple(connectionConfig, 1)
+            m_Connection = new TcpConnection(connectionConfig, 1)
             {
                 Tag = this,
                 OnConnected = onConnected,
@@ -68,7 +68,7 @@ public class TestClient
 ```c#
 public class test : MonoBehaviour
 {
-    private TcpConnectionSimple m_Connection;
+    private TcpConnection m_Connection;
     private float m_HeartBeatCounter;
     
     void Start()
@@ -80,9 +80,9 @@ public class test : MonoBehaviour
             WriteTimeout = 1000,
             HeartBeatInterval = 5
         };
-        var codec = new SimpleProtoCodec();
+        var codec = new ProtoCodec();
         connectionConfig.Codec = codec;
-        m_Connection = new TcpConnectionSimple(connectionConfig, 1)
+        m_Connection = new TcpConnection(connectionConfig, 1)
         {
             OnConnected = onConnected,
             OnClose = onClose,

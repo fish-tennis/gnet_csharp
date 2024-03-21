@@ -44,7 +44,7 @@
         <Compile Include="codec.cs" />
         <Compile Include="connection.cs" />
         <Compile Include="packet.cs" />
-        <Compile Include="tcp_connection_simple.cs" />
+        <Compile Include="tcp_connection.cs" />
     </ItemGroup>
     <ItemGroup>
       <Content Include="README.md" />

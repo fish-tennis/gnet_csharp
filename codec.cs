@@ -24,7 +24,7 @@ namespace gnet_csharp
         IPacket Decode(IConnection connection, byte[] data);
     }
 
-    public class SimpleProtoCodec : ICodec
+    public class ProtoCodec : ICodec
     {
         /// <summary>
         ///     map of Command and Protobuf MessageDescriptor

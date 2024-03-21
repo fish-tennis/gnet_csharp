@@ -10,7 +10,7 @@ namespace gnet_csharp
     /// <summary>
     ///     tcp connection,without RingBuffer
     /// </summary>
-    public class TcpConnectionSimple : baseConnection, IConnection
+    public class TcpConnection : baseConnection, IConnection
     {
         private readonly byte[] m_ReadBuffer;
         private string m_HostAddress;
@@ -21,7 +21,7 @@ namespace gnet_csharp
         private int m_ReadLength;
         private TcpClient m_TcpClient;
 
-        public TcpConnectionSimple(ConnectionConfig connectionConfig, int connectionId)
+        public TcpConnection(ConnectionConfig connectionConfig, int connectionId)
         {
             m_ConnectionId = connectionId;
             m_Config = connectionConfig;
