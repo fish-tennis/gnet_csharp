@@ -69,7 +69,7 @@ public class TestClient
 public class test : MonoBehaviour
 {
     private TcpConnectionSimple m_Connection;
-    private float heartBeatCounter;
+    private float m_HeartBeatCounter;
     
     void Start()
     {
@@ -119,11 +119,11 @@ public class test : MonoBehaviour
             // write your logic code here
             Debug.LogFormat("recv cmd:{0} msg:{1}", packet.Command(), packet.Message());
         }
-        heartBeatCounter += Time.deltaTime;
+        m_HeartBeatCounter += Time.deltaTime;
         if (m_Connection.GetConfig().HeartBeatInterval > 0 &&
-            heartBeatCounter > m_Connection.GetConfig().HeartBeatInterval)
+            m_HeartBeatCounter > m_Connection.GetConfig().HeartBeatInterval)
         {
-            heartBeatCounter = 0;
+            m_HeartBeatCounter = 0;
             m_Connection.Send(Convert.ToUInt16(CmdTest.CmdHeartBeat), new HeartBeatReq
                 {
                     Timestamp = DateTimeOffset.Now.ToUnixTimeSeconds(),
@@ -134,6 +134,3 @@ public class test : MonoBehaviour
     }
 }
 ```
-
-# TODO:
-use RingBuffer to increase performance
