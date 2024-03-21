@@ -8,18 +8,18 @@ using Google.Protobuf;
 namespace gnet_csharp
 {
     /// <summary>
-    /// tcp connection,without RingBuffer
+    ///     tcp connection,without RingBuffer
     /// </summary>
     public class TcpConnectionSimple : baseConnection, IConnection
     {
-        private TcpClient m_TcpClient;
-        private NetworkStream m_OutStream;
-        private MemoryStream m_MemStream;
-        private BinaryReader m_Reader;
         private readonly byte[] m_ReadBuffer;
-        private int m_ReadLength;
         private string m_HostAddress;
         private int m_IsClosed;
+        private MemoryStream m_MemStream;
+        private NetworkStream m_OutStream;
+        private BinaryReader m_Reader;
+        private int m_ReadLength;
+        private TcpClient m_TcpClient;
 
         public TcpConnectionSimple(ConnectionConfig connectionConfig, int connectionId)
         {
@@ -27,16 +27,6 @@ namespace gnet_csharp
             m_Config = connectionConfig;
             Codec = m_Config.Codec;
             m_ReadBuffer = new byte[m_Config.RecvBufferSize];
-        }
-
-        public string GetHostAddress()
-        {
-            return m_HostAddress;
-        }
-
-        public ConnectionConfig GetConfig()
-        {
-            return m_Config;
         }
 
         public bool Connect(string address)
@@ -76,6 +66,78 @@ namespace gnet_csharp
             Console.WriteLine("BeginConnect:" + address);
             m_TcpClient.BeginConnect(host, port, onAsyncConnected, this);
             return true;
+        }
+
+        public void Close()
+        {
+            Console.WriteLine("Close");
+            m_IsConnected = false;
+
+            // 因为Close可能会被多个线程多次调用,所以这里用原子操作,防止OnClose被多次调用
+            if (Interlocked.CompareExchange(ref m_IsClosed, 1, 0) == 0)
+            {
+                if (m_TcpClient != null)
+                {
+                    if (m_TcpClient.Connected) m_TcpClient.Close();
+
+                    m_TcpClient = null;
+                }
+
+                if (m_Reader != null)
+                {
+                    m_Reader.Close();
+                    m_MemStream.Close();
+                    m_Reader = null;
+                }
+
+                OnClose?.Invoke(this);
+            }
+
+            ClearPackets();
+        }
+
+        /// <summary>
+        ///     asynchronous send packet
+        /// </summary>
+        public bool Send(ushort command, IMessage message)
+        {
+            return SendPacket(new ProtoPacket(command, message));
+        }
+
+        /// <summary>
+        ///     asynchronous send packet
+        /// </summary>
+        public bool SendPacket(IPacket packet)
+        {
+            if (!IsConnected())
+            {
+                Console.WriteLine("SendPacket !IsConnected");
+                return false;
+            }
+
+            var bytes = Codec.Encode(this, packet);
+            try
+            {
+                m_OutStream.BeginWrite(bytes, 0, bytes.Length, onAsyncWrite, this);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                Close();
+                return false;
+            }
+
+            return true;
+        }
+
+        public string GetHostAddress()
+        {
+            return m_HostAddress;
+        }
+
+        public ConnectionConfig GetConfig()
+        {
+            return m_Config;
         }
 
         private void onAsyncConnected(IAsyncResult asr)
@@ -135,15 +197,12 @@ namespace gnet_csharp
             catch (Exception ex)
             {
                 Console.WriteLine("OnReadErr ex:" + ex);
-                if (m_TcpClient != null)
-                {
-                    Close();
-                }
+                if (m_TcpClient != null) Close();
             }
         }
 
         /// <summary>
-        /// decode packet from received buffer
+        ///     decode packet from received buffer
         /// </summary>
         /// <returns></returns>
         private bool decodePackets()
@@ -151,26 +210,20 @@ namespace gnet_csharp
             while (IsConnected())
             {
                 if (m_ReadLength < Codec.PacketHeaderSize())
-                {
                     // received buffer size not enough for a full packet header
                     return true;
-                }
 
                 var newPacketHeader = Codec.CreatePacketHeader(this, null, null);
                 newPacketHeader.ReadFrom(m_ReadBuffer);
                 var fullPacketLength = Convert.ToInt32(newPacketHeader.Len() + Codec.PacketHeaderSize());
                 if (m_ReadLength < fullPacketLength)
-                {
                     // received buffer size not enough for a full packet
                     return true;
-                }
 
                 var newPacket = Codec.Decode(this, m_ReadBuffer);
                 if (newPacket == null)
-                {
                     // codec error
                     return false;
-                }
 
                 PushPacket(newPacket);
                 // Console.WriteLine("decodePackets " + newPacket + " fullPacketLength:" + fullPacketLength);
@@ -179,70 +232,6 @@ namespace gnet_csharp
                 m_ReadLength -= fullPacketLength;
             }
 
-            return true;
-        }
-
-        public void Close()
-        {
-            Console.WriteLine("Close");
-            m_IsConnected = false;
-
-            // 因为Close可能会被多个线程多次调用,所以这里用原子操作,防止OnClose被多次调用
-            if(Interlocked.CompareExchange(ref m_IsClosed, 1, 0) == 0)
-            {
-                if (m_TcpClient != null)
-                {
-                    if (m_TcpClient.Connected)
-                    {
-                        m_TcpClient.Close();
-                    }
-
-                    m_TcpClient = null;
-                }
-
-                if (m_Reader != null)
-                {
-                    m_Reader.Close();
-                    m_MemStream.Close();
-                    m_Reader = null;
-                }
-                
-                OnClose?.Invoke(this);
-            }
-
-            ClearPackets();
-        }
-
-        /// <summary>
-        /// asynchronous send packet
-        /// </summary>
-        public bool Send(ushort command, IMessage message)
-        {
-            return SendPacket(new ProtoPacket(command, message));
-        }
-
-        /// <summary>
-        /// asynchronous send packet
-        /// </summary>
-        public bool SendPacket(IPacket packet)
-        {
-            if (!IsConnected())
-            {
-                Console.WriteLine("SendPacket !IsConnected");
-                return false;
-            }
-
-            var bytes = Codec.Encode(this, packet);
-            try
-            {
-                m_OutStream.BeginWrite(bytes, 0, bytes.Length, onAsyncWrite, this);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                Close();
-                return false;
-            }
             return true;
         }
 

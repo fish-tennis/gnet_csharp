@@ -14,12 +14,12 @@ namespace gnet_csharp
         IPacketHeader CreatePacketHeader(IConnection connection, IPacket packet, byte[] packetData);
 
         /// <summary>
-        ///  encode a packet to stream data
+        ///     encode a packet to stream data
         /// </summary>
         byte[] Encode(IConnection connection, IPacket packet);
 
         /// <summary>
-        /// decode a packet from stream data
+        ///     decode a packet from stream data
         /// </summary>
         IPacket Decode(IConnection connection, byte[] data);
     }
@@ -27,9 +27,9 @@ namespace gnet_csharp
     public class SimpleProtoCodec : ICodec
     {
         /// <summary>
-        /// map of Command and Protobuf MessageDescriptor
-        /// </summary>s
-        private Hashtable m_MessageDescriptors = new Hashtable();
+        ///     map of Command and Protobuf MessageDescriptor
+        /// </summary>
+        private readonly Hashtable m_MessageDescriptors = new Hashtable();
 
         public int PacketHeaderSize()
         {
@@ -56,37 +56,25 @@ namespace gnet_csharp
             var writer = new BinaryWriter(stream);
             writer.Seek(PacketHeaderSize(), SeekOrigin.Begin);
             writer.Write(command);
-            if (bodyData != null)
-            {
-                writer.Write(bodyData);
-            }
+            if (bodyData != null) writer.Write(bodyData);
             writer.Flush();
             return stream.ToArray();
         }
 
         public IPacket Decode(IConnection connection, byte[] data)
         {
-            if (data.Length < PacketHeaderSize() + 2)
-            {
-                return null;
-            }
+            if (data.Length < PacketHeaderSize() + 2) return null;
 
             var packetHeader = new DefaultPacketHeader();
             packetHeader.ReadFrom(data);
             var command = BitConverter.ToUInt16(data, PacketHeaderSize());
             Console.WriteLine("command:" + command);
             var messageLen = Convert.ToInt32(packetHeader.Len()) - 2;
-            if (messageLen <= 0)
-            {
-                Console.WriteLine("messageLen:" + messageLen);
-            }
+            if (messageLen <= 0) Console.WriteLine("messageLen:" + messageLen);
 
             var messageBuffer = data.Skip(PacketHeaderSize() + 2).Take(messageLen).ToArray();
             var messageDescriptor = getMessageDescriptor(command);
-            if (messageDescriptor == null)
-            {
-                return new ProtoPacket(command, messageBuffer);
-            }
+            if (messageDescriptor == null) return new ProtoPacket(command, messageBuffer);
             var protoMessage = messageDescriptor.Parser.ParseFrom(messageBuffer);
             return new ProtoPacket(command, protoMessage);
         }

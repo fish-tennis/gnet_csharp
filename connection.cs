@@ -4,38 +4,39 @@ using Google.Protobuf;
 namespace gnet_csharp
 {
     public delegate void OnConnectedDelegate(IConnection connection, bool success);
+
     public delegate void OnCloseDelegate(IConnection connection);
-    
+
     public interface IConnection
     {
+        /// <summary>
+        ///     user-defined object that bind the Connection
+        /// </summary>
+        object Tag { get; set; }
+
+        ICodec Codec { get; set; }
+
+        /// <summary>
+        ///     callback of Connect operation
+        /// </summary>
+        OnConnectedDelegate OnConnected { get; set; }
+
+        /// <summary>
+        ///     callback of Close operation
+        /// </summary>
+        OnCloseDelegate OnClose { get; set; }
+
         int GetConnectionId();
 
         bool IsConnected();
 
         /// <summary>
-        /// user-defined object that bind the Connection
-        /// </summary>
-        object Tag { get; set; }
-
-        ICodec Codec { get; set; }
-        
-        /// <summary>
-        /// callback of Connect operation
-        /// </summary>
-        OnConnectedDelegate OnConnected { get; set; }
-        
-        /// <summary>
-        /// callback of Close operation
-        /// </summary>
-        OnCloseDelegate OnClose { get; set; }
-
-        /// <summary>
-        /// connect to the host,it may be a asynchronous operation,
-        /// so use OnConnected to check if connected successful
+        ///     connect to the host,it may be a asynchronous operation,
+        ///     so use OnConnected to check if connected successful
         /// </summary>
         /// <param name="address">ip:port or url:port</param>
         bool Connect(string address);
-        
+
         bool Send(ushort command, IMessage message);
 
         bool SendPacket(IPacket packet);
@@ -45,51 +46,51 @@ namespace gnet_csharp
 
     public class ConnectionConfig
     {
-        /// <summary>
-        /// use for RingBuffer Codec
-        /// </summary>
-        public int SendBufferSize;
-        
-        /// <summary>
-        /// the size of receive buffer,must not less than the biggest packet size in your project
-        /// </summary>
-        public int RecvBufferSize;
-        
-        /// <summary>
-        /// the biggest packet size in your project
-        /// </summary>
-        public int MaxPacketSize;
+        public ICodec Codec;
 
         /// <summary>
-        /// TcpClient.ReceiveTimeout (millisecond)
-        /// </summary>
-        public int RecvTimeout;
-
-        /// <summary>
-        /// seconds of heartbeat interval
+        ///     seconds of heartbeat interval
         /// </summary>
         public int HeartBeatInterval;
 
         /// <summary>
-        /// TcpClient.SendTimeout (millisecond)
+        ///     the biggest packet size in your project
+        /// </summary>
+        public int MaxPacketSize;
+
+        /// <summary>
+        ///     the size of receive buffer,must not less than the biggest packet size in your project
+        /// </summary>
+        public int RecvBufferSize;
+
+        /// <summary>
+        ///     TcpClient.ReceiveTimeout (millisecond)
+        /// </summary>
+        public int RecvTimeout;
+
+        /// <summary>
+        ///     use for RingBuffer Codec
+        /// </summary>
+        public int SendBufferSize;
+
+        /// <summary>
+        ///     TcpClient.SendTimeout (millisecond)
         /// </summary>
         public int WriteTimeout;
-
-        public ICodec Codec;
     }
 
     public class baseConnection
     {
-        protected int m_ConnectionId;
         protected ConnectionConfig m_Config;
+        protected int m_ConnectionId;
         protected bool m_IsConnected;
+
+        protected Queue<IPacket> m_Packets = new Queue<IPacket>();
+        protected object m_PacketsLock = new object();
         public ICodec Codec { get; set; }
         public object Tag { get; set; }
         public OnConnectedDelegate OnConnected { get; set; }
         public OnCloseDelegate OnClose { get; set; }
-        
-        protected Queue<IPacket> m_Packets = new Queue<IPacket>();
-        protected object m_PacketsLock = new object();
 
         public int GetConnectionId()
         {
@@ -113,10 +114,7 @@ namespace gnet_csharp
         {
             lock (m_PacketsLock)
             {
-                if (m_Packets.Count == 0)
-                {
-                    return null;
-                }
+                if (m_Packets.Count == 0) return null;
 
                 return m_Packets.Dequeue();
             }
