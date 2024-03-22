@@ -215,9 +215,10 @@ namespace gnet_csharp
                     if (m_ReadLength < Codec.PacketHeaderSize())
                         // received buffer size not enough for a full packet header
                         return true;
-                    var headerData = new byte[Codec.PacketHeaderSize()];
-                    Array.Copy(m_ReadBuffer, 0, headerData, 0, headerData.Length);
-                    m_CurrentPacketHeader = Codec.DecodePacketHeader(this, headerData, 0, headerData.Length);
+                    var headerData = new Slice<byte>(m_ReadBuffer, 0, Codec.PacketHeaderSize());
+                    // 这里拷贝一份数据,在解析完整数据包之前,不修改原始数据
+                    headerData = new Slice<byte>(headerData.ToArray());
+                    m_CurrentPacketHeader = Codec.DecodePacketHeader(this, headerData);
                     if (m_CurrentPacketHeader == null)
                     {
                         // decode error
@@ -230,7 +231,7 @@ namespace gnet_csharp
                     // received buffer size not enough for a full packet
                     return true;
 
-                var newPacket = Codec.Decode(this, m_ReadBuffer, 0, fullPacketLength);
+                var newPacket = Codec.Decode(this, new Slice<byte>(m_ReadBuffer, 0, fullPacketLength));
                 if (newPacket == null)
                     // decode error
                     return false;

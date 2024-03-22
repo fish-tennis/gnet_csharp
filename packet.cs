@@ -15,12 +15,12 @@ namespace gnet_csharp
         /// <summary>
         ///     deserialize from stream data
         /// </summary>
-        void ReadFrom(byte[] packetHeaderData);
+        void ReadFrom(Slice<byte> packetHeaderData);
 
         /// <summary>
         ///     serialize
         /// </summary>
-        void WriteTo(byte[] packetHeaderData);
+        void WriteTo(Slice<byte> packetHeaderData);
     }
 
     public interface IPacket
@@ -71,17 +71,17 @@ namespace gnet_csharp
             return m_LenAndFlags & 0x00FFFFFF;
         }
 
-        public void ReadFrom(byte[] packetHeaderData)
+        public void ReadFrom(Slice<byte> packetHeaderData)
         {
-            m_LenAndFlags = BitConverter.ToUInt32(packetHeaderData, 0);
+            m_LenAndFlags = BitConverter.ToUInt32(packetHeaderData.OriginalArray, packetHeaderData.StartIndex);
         }
 
-        public void WriteTo(byte[] packetHeaderData)
+        public void WriteTo(Slice<byte> packetHeaderData)
         {
-            var stream = new MemoryStream(packetHeaderData);
+            var stream = new MemoryStream(packetHeaderData.OriginalArray);
             var writer = new BinaryWriter(stream);
+            writer.Seek(packetHeaderData.StartIndex, SeekOrigin.Begin);
             writer.Write(m_LenAndFlags);
-            // BitConverter.TryWriteBytes(packetHeaderData, m_LenAndFlags);
         }
 
         public byte Flags()
