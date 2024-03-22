@@ -9,45 +9,46 @@ namespace gnet_csharp
     public class Slice<T>
     {
         private T[] m_Array;
-        
+
         /// <summary>
         /// [begin,end)
         /// </summary>
         private int m_StartIndex;
+
         private int m_Length;
-        
+
         public int Length => m_Length;
-        
+
         public int StartIndex => m_StartIndex;
 
         public T[] OriginalArray => m_Array;
-        
+
         public Slice(T[] buffer)
         {
             m_Array = buffer;
             m_StartIndex = 0;
             m_Length = buffer.Length;
         }
-        
+
         public Slice(T[] buffer, int startIndex, int length)
         {
             m_Array = buffer;
             m_StartIndex = startIndex;
             m_Length = length;
         }
-        
+
         public Slice(Slice<T> src, int begin, int length)
         {
             m_Array = src.m_Array;
             m_StartIndex = src.m_StartIndex + begin;
             m_Length = length;
         }
-        
+
         public void CopyTo(T[] dst, int dstIndex, int length)
         {
             Array.Copy(m_Array, m_StartIndex, dst, dstIndex, length);
         }
-        
+
         /// <summary>
         /// 拷贝一份数据
         /// </summary>

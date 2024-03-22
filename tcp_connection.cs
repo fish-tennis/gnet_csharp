@@ -208,17 +208,19 @@ namespace gnet_csharp
         /// <returns></returns>
         private bool decodePackets()
         {
+            var readIndex = 0;
+            var remainLength = m_ReadLength;
             while (IsConnected())
             {
                 if (m_CurrentPacketHeader == null)
                 {
-                    if (m_ReadLength < Codec.PacketHeaderSize())
+                    if (remainLength < Codec.PacketHeaderSize())
                         // received buffer size not enough for a full packet header
-                        return true;
-                    var headerData = new Slice<byte>(m_ReadBuffer, 0, Codec.PacketHeaderSize());
+                        break;
+                    var srcHeaderData = new Slice<byte>(m_ReadBuffer, readIndex, Codec.PacketHeaderSize());
                     // 这里拷贝一份数据,在解析完整数据包之前,不修改原始数据
-                    headerData = new Slice<byte>(headerData.ToArray());
-                    m_CurrentPacketHeader = Codec.DecodePacketHeader(this, headerData);
+                    var copyHeaderData = new Slice<byte>(srcHeaderData.ToArray());
+                    m_CurrentPacketHeader = Codec.DecodePacketHeader(this, copyHeaderData);
                     if (m_CurrentPacketHeader == null)
                     {
                         // decode error
@@ -227,20 +229,26 @@ namespace gnet_csharp
                 }
 
                 var fullPacketLength = Convert.ToInt32(m_CurrentPacketHeader.Len() + Codec.PacketHeaderSize());
-                if (m_ReadLength < fullPacketLength)
+                if (remainLength < fullPacketLength)
                     // received buffer size not enough for a full packet
-                    return true;
+                    break;
 
-                var newPacket = Codec.Decode(this, new Slice<byte>(m_ReadBuffer, 0, fullPacketLength));
+                var fullPacketData = new Slice<byte>(m_ReadBuffer, readIndex, fullPacketLength);
+                var newPacket = Codec.Decode(this, fullPacketData);
                 if (newPacket == null)
                     // decode error
                     return false;
-                m_CurrentPacketHeader = null;
                 PushPacket(newPacket);
-                // Console.WriteLine("decodePackets " + newPacket + " fullPacketLength:" + fullPacketLength);
-                // remove the space of newPacket
-                Array.Copy(m_ReadBuffer, fullPacketLength, m_ReadBuffer, 0, m_ReadLength - fullPacketLength);
-                m_ReadLength -= fullPacketLength;
+                m_CurrentPacketHeader = null;
+                remainLength -= fullPacketLength;
+                readIndex += fullPacketLength;
+            }
+
+            if (readIndex > 0)
+            {
+                // remove the space of decoded packets
+                Array.Copy(m_ReadBuffer, readIndex, m_ReadBuffer, 0, m_ReadLength - readIndex);
+                m_ReadLength = remainLength;
             }
 
             return true;

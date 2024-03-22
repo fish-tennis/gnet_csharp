@@ -98,7 +98,12 @@ namespace gnet_csharp
             packetHeader.ReadFrom(data);
             var command = BitConverter.ToUInt16(data.OriginalArray, data.StartIndex + PacketHeaderSize());
             var messageLen = Convert.ToInt32(packetHeader.Len()) - 2;
-            if (messageLen <= 0) Console.WriteLine("messageLen:" + messageLen);
+            if (messageLen <= 0) Console.WriteLine("command:" + command + " messageLen:" + messageLen);
+            if (messageLen > data.Length)
+            {
+                Console.WriteLine("command:" + command + " messageLenErr:" + messageLen);
+                return null;
+            }
 
             var messageBuffer = new Slice<byte>(data, PacketHeaderSize() + 2, messageLen);
             // var messageBuffer = data.Skip(PacketHeaderSize() + 2).Take(messageLen).ToArray();
@@ -134,9 +139,10 @@ namespace gnet_csharp
 
         private byte[] xorEncode(byte[] data, int startIndex, int length)
         {
-            for (var i = startIndex; i < startIndex + length; i++)
+            for (var i = 0; i < length; i++)
             {
-                data[i] = (byte) (data[i] ^ m_XorKey[i % m_XorKey.Length]);
+                var index = startIndex + i;
+                data[index] = (byte) (data[index] ^ m_XorKey[i % m_XorKey.Length]);
             }
 
             return data;
