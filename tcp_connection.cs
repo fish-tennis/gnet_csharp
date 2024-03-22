@@ -19,6 +19,7 @@ namespace gnet_csharp
         private NetworkStream m_OutStream;
         private BinaryReader m_Reader;
         private int m_ReadLength;
+        private IPacketHeader m_CurrentPacketHeader;
         private TcpClient m_TcpClient;
 
         public TcpConnection(ConnectionConfig connectionConfig, int connectionId)
@@ -209,22 +210,31 @@ namespace gnet_csharp
         {
             while (IsConnected())
             {
-                if (m_ReadLength < Codec.PacketHeaderSize())
-                    // received buffer size not enough for a full packet header
-                    return true;
+                if (m_CurrentPacketHeader == null)
+                {
+                    if (m_ReadLength < Codec.PacketHeaderSize())
+                        // received buffer size not enough for a full packet header
+                        return true;
+                    var headerData = new byte[Codec.PacketHeaderSize()];
+                    Array.Copy(m_ReadBuffer, 0, headerData, 0, headerData.Length);
+                    m_CurrentPacketHeader = Codec.DecodePacketHeader(this, headerData, 0, headerData.Length);
+                    if (m_CurrentPacketHeader == null)
+                    {
+                        // decode error
+                        return false;
+                    }
+                }
 
-                var newPacketHeader = Codec.CreatePacketHeader(this, null, null);
-                newPacketHeader.ReadFrom(m_ReadBuffer);
-                var fullPacketLength = Convert.ToInt32(newPacketHeader.Len() + Codec.PacketHeaderSize());
+                var fullPacketLength = Convert.ToInt32(m_CurrentPacketHeader.Len() + Codec.PacketHeaderSize());
                 if (m_ReadLength < fullPacketLength)
                     // received buffer size not enough for a full packet
                     return true;
 
-                var newPacket = Codec.Decode(this, m_ReadBuffer);
+                var newPacket = Codec.Decode(this, m_ReadBuffer, 0, fullPacketLength);
                 if (newPacket == null)
-                    // codec error
+                    // decode error
                     return false;
-
+                m_CurrentPacketHeader = null;
                 PushPacket(newPacket);
                 // Console.WriteLine("decodePackets " + newPacket + " fullPacketLength:" + fullPacketLength);
                 // remove the space of newPacket

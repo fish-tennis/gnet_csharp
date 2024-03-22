@@ -11,7 +11,7 @@ namespace gnet_csharp
     {
         int PacketHeaderSize();
 
-        IPacketHeader CreatePacketHeader(IConnection connection, IPacket packet, byte[] packetData);
+        IPacketHeader DecodePacketHeader(IConnection connection, byte[] data, int startIndex, int length);
 
         /// <summary>
         ///     encode a packet to stream data
@@ -21,8 +21,13 @@ namespace gnet_csharp
         /// <summary>
         ///     decode a packet from stream data
         /// </summary>
-        IPacket Decode(IConnection connection, byte[] data);
+        IPacket Decode(IConnection connection, byte[] data, int startIndex, int length);
     }
+
+    public delegate byte[] PacketDataEncoder(IConnection connection, IPacket packet, byte[] data, int startIndex,
+        int length);
+
+    public delegate byte[] PacketDataDecoder(IConnection connection, byte[] data, int startIndex, int length);
 
     public class ProtoCodec : ICodec
     {
@@ -31,16 +36,30 @@ namespace gnet_csharp
         /// </summary>
         private readonly Hashtable m_MessageDescriptors = new Hashtable();
 
+        public PacketDataEncoder DataEncoder { get; set; }
+        public PacketDataDecoder DataDecoder { get; set; }
+
         public int PacketHeaderSize()
         {
             return DefaultPacketHeader.DefaultPacketHeaderSize;
         }
 
-        public IPacketHeader CreatePacketHeader(IConnection connection, IPacket packet, byte[] packetData)
+        public IPacketHeader DecodePacketHeader(IConnection connection, byte[] data, int startIndex, int length)
         {
-            return packetData == null
-                ? new DefaultPacketHeader()
-                : new DefaultPacketHeader(Convert.ToUInt32(packetData.Length), 0);
+            if (length < PacketHeaderSize())
+            {
+                return null;
+            }
+
+            var decodeHeaderData = data;
+            if (DataDecoder != null)
+            {
+                decodeHeaderData = DataDecoder.Invoke(connection, data, startIndex, PacketHeaderSize());
+            }
+
+            var packetHeader = new DefaultPacketHeader();
+            packetHeader.ReadFrom(decodeHeaderData);
+            return packetHeader;
         }
 
         public byte[] Encode(IConnection connection, IPacket packet)
@@ -58,17 +77,27 @@ namespace gnet_csharp
             writer.Write(command);
             if (bodyData != null) writer.Write(bodyData);
             writer.Flush();
-            return stream.ToArray();
+            var packetBytes = stream.ToArray();
+            // DataEncoder可以继续对packetBytes进行编码,如异或,加密,压缩等
+            // DataEncoder can continue to encode packetBytes here, such as XOR, encryption, compression, etc
+            return DataEncoder == null
+                ? packetBytes
+                : DataEncoder.Invoke(connection, packet, packetBytes, 0, packetBytes.Length);
         }
 
-        public IPacket Decode(IConnection connection, byte[] data)
+        public IPacket Decode(IConnection connection, byte[] data, int startIndex, int length)
         {
             if (data.Length < PacketHeaderSize() + 2) return null;
+            // Q:DataDecoder可以对data进行解码,如异或,解密,解压等
+            // DataDecoder can decode data here, such as XOR, decryption, decompression, etc
+            if (DataDecoder != null)
+            {
+                data = DataDecoder.Invoke(connection, data, startIndex, length);
+            }
 
             var packetHeader = new DefaultPacketHeader();
             packetHeader.ReadFrom(data);
             var command = BitConverter.ToUInt16(data, PacketHeaderSize());
-            Console.WriteLine("command:" + command);
             var messageLen = Convert.ToInt32(packetHeader.Len()) - 2;
             if (messageLen <= 0) Console.WriteLine("messageLen:" + messageLen);
 
@@ -89,6 +118,38 @@ namespace gnet_csharp
             if (m_MessageDescriptors.Contains(command))
                 return m_MessageDescriptors[command] as MessageDescriptor;
             return null;
+        }
+    }
+
+    public class XorProtoCodec : ProtoCodec
+    {
+        private byte[] m_XorKey;
+
+        public XorProtoCodec(byte[] xorKey)
+        {
+            m_XorKey = xorKey;
+            DataEncoder = xorDataEncoder;
+            DataDecoder = xorDataDecoder;
+        }
+
+        private byte[] xorEncode(byte[] data, int startIndex, int length)
+        {
+            for (var i = startIndex; i < startIndex + length; i++)
+            {
+                data[i] = (byte) (data[i] ^ m_XorKey[i % m_XorKey.Length]);
+            }
+
+            return data;
+        }
+
+        private byte[] xorDataEncoder(IConnection connection, IPacket packet, byte[] data, int startIndex, int length)
+        {
+            return xorEncode(data, startIndex, length);
+        }
+
+        private byte[] xorDataDecoder(IConnection connection, byte[] data, int startIndex, int length)
+        {
+            return xorEncode(data, startIndex, length);
         }
     }
 }
