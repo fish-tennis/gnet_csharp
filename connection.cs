@@ -77,6 +77,21 @@ namespace gnet_csharp
         ///     TcpClient.SendTimeout (millisecond)
         /// </summary>
         public int WriteTimeout;
+
+        /// <summary>
+        /// InsecureSkipVerify controls whether a client verifies the server's
+        /// certificate chain and host name. If InsecureSkipVerify is true, crypto/tls
+        /// accepts any certificate presented by the server and any host name in that
+        /// certificate. In this mode, TLS is susceptible to machine-in-the-middle
+        /// attacks unless custom verification is used
+        /// </summary>
+        public bool InsecureSkipVerify;
+
+        /// <summary>
+        /// cert file for wss
+        /// only valid when InsecureSkipVerify is false 
+        /// </summary>
+        public string CertFile;
     }
 
     public class baseConnection

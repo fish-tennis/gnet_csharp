@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 
@@ -41,17 +42,17 @@ namespace gnet_csharp
 
         public ushort Command => m_Command;
         
-        public void ReadFrom(Slice<byte> packetHeaderData)
+        public void ReadFrom(ArraySegment<byte> packetHeaderData)
         {
-            m_LenAndFlags = BitConverter.ToUInt32(packetHeaderData.OriginalArray, packetHeaderData.StartIndex);
-            m_Command = BitConverter.ToUInt16(packetHeaderData.OriginalArray, packetHeaderData.StartIndex + 4);
+            m_LenAndFlags = BitConverter.ToUInt32(packetHeaderData.Array, packetHeaderData.Offset);
+            m_Command = BitConverter.ToUInt16(packetHeaderData.Array, packetHeaderData.Offset + 4);
         }
 
-        public void WriteTo(Slice<byte> packetHeaderData)
+        public void WriteTo(ArraySegment<byte> packetHeaderData)
         {
-            var stream = new MemoryStream(packetHeaderData.OriginalArray);
+            var stream = new MemoryStream(packetHeaderData.Array);
             var writer = new BinaryWriter(stream);
-            writer.Seek(packetHeaderData.StartIndex, SeekOrigin.Begin);
+            writer.Seek(packetHeaderData.Offset, SeekOrigin.Begin);
             writer.Write(m_LenAndFlags);
             writer.Write(m_Command);
         }
@@ -76,9 +77,9 @@ namespace gnet_csharp
             return SimplePacketHeader.SimplePacketHeaderSize;
         }
 
-        public IPacketHeader DecodePacketHeader(IConnection connection, Slice<byte> headerData)
+        public IPacketHeader DecodePacketHeader(IConnection connection, ArraySegment<byte> headerData)
         {
-            if (headerData.Length < PacketHeaderSize())
+            if (headerData.Count < PacketHeaderSize())
             {
                 return null;
             }
@@ -102,7 +103,7 @@ namespace gnet_csharp
             var bodyDataLen = bodyData?.Length ?? 0;
             var fullPacketData = new byte[PacketHeaderSize() + bodyDataLen];
             var packetHeader = new SimplePacketHeader(Convert.ToUInt32(bodyDataLen), 0, command);
-            packetHeader.WriteTo(new Slice<byte>(fullPacketData));
+            packetHeader.WriteTo(new ArraySegment<byte>(fullPacketData));
             var stream = new MemoryStream(fullPacketData);
             var writer = new BinaryWriter(stream);
             writer.Seek(PacketHeaderSize(), SeekOrigin.Begin);
@@ -113,12 +114,12 @@ namespace gnet_csharp
             // DataEncoder can continue to encode packetBytes here, such as XOR, encryption, compression, etc
             return DataEncoder == null
                 ? packetBytes
-                : DataEncoder.Invoke(connection, packet, new Slice<byte>(packetBytes));
+                : DataEncoder.Invoke(connection, packet, new ArraySegment<byte>(packetBytes));
         }
 
-        public IPacket Decode(IConnection connection, Slice<byte> data)
+        public IPacket Decode(IConnection connection, ArraySegment<byte> data)
         {
-            if (data.Length < PacketHeaderSize()) return null;
+            if (data.Count < PacketHeaderSize()) return null;
             // Q:DataDecoder可以对data进行解码,如异或,解密,解压等
             // DataDecoder can decode data here, such as XOR, decryption, decompression, etc
             if (DataDecoder != null)
@@ -131,13 +132,13 @@ namespace gnet_csharp
             var command = packetHeader.Command;
             var messageLen = Convert.ToInt32(packetHeader.Len());
             if (messageLen <= 0) Console.WriteLine("command:" + command + " messageLen:" + messageLen);
-            if (messageLen > data.Length)
+            if (messageLen > data.Count)
             {
                 Console.WriteLine("command:" + command + " messageLenErr:" + messageLen);
                 return null;
             }
 
-            var messageBuffer = new Slice<byte>(data, PacketHeaderSize(), messageLen);
+            var messageBuffer = new ArraySegment<byte>(data.Array, data.Offset + PacketHeaderSize(), messageLen);
             var messageDescriptor = getMessageDescriptor(command);
             if (messageDescriptor == null) return new ProtoPacket(command, messageBuffer.ToArray());
             try

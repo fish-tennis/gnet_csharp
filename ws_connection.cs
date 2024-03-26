@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Net;
 using System.Net.WebSockets;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,6 +37,20 @@ namespace gnet_csharp
             Console.WriteLine("BeginConnect:" + uri);
             m_HostAddress = address;
             m_WebSocket = new ClientWebSocket();
+            if (m_Config.HeartBeatInterval > 0)
+            {
+                m_WebSocket.Options.KeepAliveInterval = TimeSpan.FromSeconds(m_Config.HeartBeatInterval);
+            }
+
+            if (m_Config.InsecureSkipVerify)
+            {
+                ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
+            }
+            else if (!string.IsNullOrEmpty(m_Config.CertFile))
+            {
+                m_WebSocket.Options.ClientCertificates.Add(new X509Certificate2(m_Config.CertFile));
+            }
+
             try
             {
                 m_WebSocket.ConnectAsync(uri, CancellationToken.None).Wait();
@@ -42,8 +58,10 @@ namespace gnet_csharp
             catch (Exception e)
             {
                 Console.WriteLine(e);
+                Close();
                 return false;
             }
+
             m_IsConnected = m_WebSocket.State == WebSocketState.Open;
             OnConnected?.Invoke(this, m_IsConnected);
             if (m_IsConnected)
@@ -69,7 +87,7 @@ namespace gnet_csharp
                     {
                         if (result.EndOfMessage)
                         {
-                            var fullPacketData = new Slice<byte>(m_ReadBuffer, 0, result.Count);
+                            var fullPacketData = new ArraySegment<byte>(m_ReadBuffer, 0, result.Count);
                             var newPacket = Codec.Decode(this, fullPacketData);
                             if (newPacket == null)
                             {
@@ -84,8 +102,8 @@ namespace gnet_csharp
                     }
                     else if (result.MessageType == WebSocketMessageType.Text)
                     {
-                        var text = new Slice<byte>(m_ReadBuffer, 0, result.Count);
-                        Console.WriteLine("StartReceive text:" + Encoding.Default.GetString(text.ToArray()));
+                        Console.WriteLine("StartReceive text:" +
+                                          Encoding.Default.GetString(m_ReadBuffer, 0, result.Count));
                     }
                     else if (result.MessageType == WebSocketMessageType.Close)
                     {
@@ -93,7 +111,7 @@ namespace gnet_csharp
                         Close();
                         break;
                     }
-                    
+
                     if (result.CloseStatus != null)
                     {
                         Console.WriteLine("StartReceive CloseStatus:" + result.CloseStatusDescription);
@@ -146,8 +164,20 @@ namespace gnet_csharp
                 Console.WriteLine("Closed");
                 if (m_WebSocket != null)
                 {
-                    m_WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "NormalClosure", CancellationToken.None).Wait();
-                    m_WebSocket.Abort();
+                    try
+                    {
+                        if (m_WebSocket.State == WebSocketState.Open)
+                        {
+                            m_WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "NormalClosure",
+                                CancellationToken.None).Wait();
+                        }
+
+                        m_WebSocket.Abort();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                    }
 
                     m_WebSocket = null;
                 }

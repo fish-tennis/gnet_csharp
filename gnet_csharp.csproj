@@ -45,7 +45,6 @@
         <Compile Include="codec_protobuf_simple.cs" />
         <Compile Include="connection.cs" />
         <Compile Include="packet.cs" />
-        <Compile Include="slice.cs" />
         <Compile Include="tcp_connection.cs" />
         <Compile Include="ws_connection.cs" />
     </ItemGroup>
