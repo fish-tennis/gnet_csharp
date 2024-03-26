@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.WebSockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -63,24 +64,39 @@ namespace gnet_csharp
                     var readResult =
                         m_WebSocket.ReceiveAsync(new ArraySegment<byte>(m_ReadBuffer), CancellationToken.None);
                     readResult.Wait();
-                    if (readResult.Result.EndOfMessage)
+                    var result = readResult.Result;
+                    if (result.MessageType == WebSocketMessageType.Binary)
                     {
-                        var fullPacketData = new Slice<byte>(m_ReadBuffer, 0, readResult.Result.Count);
-                        var newPacket = Codec.Decode(this, fullPacketData);
-                        if (newPacket == null)
+                        if (result.EndOfMessage)
                         {
-                            Console.WriteLine("StartReceive decode error");
-                            // decode error
-                            Close();
-                            break;
+                            var fullPacketData = new Slice<byte>(m_ReadBuffer, 0, result.Count);
+                            var newPacket = Codec.Decode(this, fullPacketData);
+                            if (newPacket == null)
+                            {
+                                Console.WriteLine("StartReceive decode error");
+                                // decode error
+                                Close();
+                                break;
+                            }
+
+                            PushPacket(newPacket);
                         }
-
-                        PushPacket(newPacket);
                     }
-
-                    if (readResult.Result.CloseStatus != null)
+                    else if (result.MessageType == WebSocketMessageType.Text)
                     {
-                        Console.WriteLine("StartReceive CloseStatus:" + readResult.Result.CloseStatusDescription);
+                        var text = new Slice<byte>(m_ReadBuffer, 0, result.Count);
+                        Console.WriteLine("StartReceive text:" + Encoding.Default.GetString(text.ToArray()));
+                    }
+                    else if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        Console.WriteLine("StartReceive close message");
+                        Close();
+                        break;
+                    }
+                    
+                    if (result.CloseStatus != null)
+                    {
+                        Console.WriteLine("StartReceive CloseStatus:" + result.CloseStatusDescription);
                         Close();
                         break;
                     }

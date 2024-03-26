@@ -70,6 +70,11 @@ namespace gnet_csharp
         {
             return m_LenAndFlags & 0x00FFFFFF;
         }
+        
+        public byte Flags()
+        {
+            return Convert.ToByte(m_LenAndFlags >> 24);
+        }
 
         public void ReadFrom(Slice<byte> packetHeaderData)
         {
@@ -82,11 +87,6 @@ namespace gnet_csharp
             var writer = new BinaryWriter(stream);
             writer.Seek(packetHeaderData.StartIndex, SeekOrigin.Begin);
             writer.Write(m_LenAndFlags);
-        }
-
-        public byte Flags()
-        {
-            return Convert.ToByte(m_LenAndFlags >> 24);
         }
     }
 
