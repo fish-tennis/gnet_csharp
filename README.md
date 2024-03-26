@@ -1,6 +1,8 @@
 # gnet_csharp
 c# connector library for [gnet](https://github.com/fish-tennis/gnet)
 
+support TcpSocket and WebSocket
+
 # c# project example
 ```c#
 public class TestClient
