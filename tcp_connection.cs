@@ -13,7 +13,6 @@ namespace gnet_csharp
     public class TcpConnection : baseConnection, IConnection
     {
         private readonly byte[] m_ReadBuffer;
-        private string m_HostAddress;
         private int m_IsClosed;
         private MemoryStream m_MemStream;
         private NetworkStream m_OutStream;
@@ -129,16 +128,6 @@ namespace gnet_csharp
             }
 
             return true;
-        }
-
-        public string GetHostAddress()
-        {
-            return m_HostAddress;
-        }
-
-        public ConnectionConfig GetConfig()
-        {
-            return m_Config;
         }
 
         private void onAsyncConnected(IAsyncResult asr)

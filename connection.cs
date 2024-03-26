@@ -84,6 +84,7 @@ namespace gnet_csharp
         protected ConnectionConfig m_Config;
         protected int m_ConnectionId;
         protected bool m_IsConnected;
+        protected string m_HostAddress;
 
         protected Queue<IPacket> m_Packets = new Queue<IPacket>();
         protected object m_PacketsLock = new object();
@@ -100,6 +101,16 @@ namespace gnet_csharp
         public bool IsConnected()
         {
             return m_IsConnected;
+        }
+        
+        public string GetHostAddress()
+        {
+            return m_HostAddress;
+        }
+        
+        public ConnectionConfig GetConfig()
+        {
+            return m_Config;
         }
 
         public void PushPacket(IPacket packet)

@@ -46,6 +46,7 @@
         <Compile Include="packet.cs" />
         <Compile Include="slice.cs" />
         <Compile Include="tcp_connection.cs" />
+        <Compile Include="ws_connection.cs" />
     </ItemGroup>
     <ItemGroup>
       <Content Include="README.md" />
