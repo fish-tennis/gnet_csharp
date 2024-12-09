@@ -93,26 +93,29 @@ namespace gnet_csharp
             {
                 data = DataDecoder.Invoke(connection, data);
             }
-
             var packetHeader = new DefaultPacketHeader();
             packetHeader.ReadFrom(data);
-            var command = BitConverter.ToUInt16(data.Array, data.Offset + PacketHeaderSize());
+            if (data.Count < PacketHeaderSize() + packetHeader.Len()) return null;
+            var offset = PacketHeaderSize();
+            var command = BitConverter.ToUInt16(data.Array, data.Offset + offset);
+            offset += 2;
             var messageLen = Convert.ToInt32(packetHeader.Len()) - 2;
-            if (messageLen <= 0) Console.WriteLine("command:" + command + " messageLen:" + messageLen);
-            if (messageLen > data.Count)
+            uint errorCode = 0;
+            if(packetHeader.HasFlag(DefaultPacketHeader.HasErrorCode))
             {
-                Console.WriteLine("command:" + command + " messageLenErr:" + messageLen);
-                return null;
+                errorCode = BitConverter.ToUInt32(data.Array, data.Offset + offset);
+                offset += 4;
+                messageLen -= 4;
             }
-
-            var messageBuffer = new ArraySegment<byte>(data.Array, data.Offset + PacketHeaderSize() + 2, messageLen);
+            if (messageLen <= 0) Console.WriteLine("command:" + command + " messageLen:" + messageLen);
+            var messageBuffer = new ArraySegment<byte>(data.Array, data.Offset + offset, messageLen);
             var messageDescriptor = getMessageDescriptor(command);
-            if (messageDescriptor == null) return new ProtoPacket(command, messageBuffer.ToArray());
+            if (messageDescriptor == null) return new ProtoPacket(command, messageBuffer.ToArray(), errorCode);
             try
             {
                 var messageBytes = messageBuffer.ToArray();
                 var protoMessage = messageDescriptor.Parser.ParseFrom(messageBytes);
-                return new ProtoPacket(command, protoMessage);
+                return new ProtoPacket(command, protoMessage, errorCode);
             }
             catch (Exception e)
             {

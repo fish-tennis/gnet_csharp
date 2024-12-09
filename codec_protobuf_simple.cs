@@ -40,6 +40,11 @@ namespace gnet_csharp
             return Convert.ToByte(m_LenAndFlags >> 24);
         }
 
+        public bool HasFlag(byte flag)
+        {
+            return (this.Flags() & flag) == flag;
+        }
+
         public ushort Command => m_Command;
         
         public void ReadFrom(ArraySegment<byte> packetHeaderData)
@@ -129,18 +134,21 @@ namespace gnet_csharp
 
             var packetHeader = new SimplePacketHeader();
             packetHeader.ReadFrom(data);
+            if (data.Count < PacketHeaderSize() + packetHeader.Len()) return null;
             var command = packetHeader.Command;
             var messageLen = Convert.ToInt32(packetHeader.Len());
-            if (messageLen <= 0) Console.WriteLine("command:" + command + " messageLen:" + messageLen);
-            if (messageLen > data.Count)
+            uint errorCode = 0;
+            int offset = PacketHeaderSize();
+            if (packetHeader.HasFlag(DefaultPacketHeader.HasErrorCode))
             {
-                Console.WriteLine("command:" + command + " messageLenErr:" + messageLen);
-                return null;
+                errorCode = BitConverter.ToUInt32(data.Array, data.Offset + offset);
+                offset += 4;
+                messageLen -= 4;
             }
-
-            var messageBuffer = new ArraySegment<byte>(data.Array, data.Offset + PacketHeaderSize(), messageLen);
+            if (messageLen <= 0) Console.WriteLine("command:" + command + " messageLen:" + messageLen);
+            var messageBuffer = new ArraySegment<byte>(data.Array, data.Offset + offset, messageLen);
             var messageDescriptor = getMessageDescriptor(command);
-            if (messageDescriptor == null) return new ProtoPacket(command, messageBuffer.ToArray());
+            if (messageDescriptor == null) return new ProtoPacket(command, messageBuffer.ToArray(), errorCode);
             try
             {
                 var messageBytes = messageBuffer.ToArray();

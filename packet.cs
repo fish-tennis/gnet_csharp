@@ -12,6 +12,8 @@ namespace gnet_csharp
         /// </summary>
         uint Len();
 
+        bool HasFlag(byte flag);
+
         /// <summary>
         ///     deserialize from stream data
         /// </summary>
@@ -27,6 +29,8 @@ namespace gnet_csharp
     {
         ushort Command();
 
+        uint ErrorCode();
+
         IMessage Message();
 
         /// <summary>
@@ -38,6 +42,9 @@ namespace gnet_csharp
 
     public class DefaultPacketHeader : IPacketHeader
     {
+        //public const byte RpcCall = 1 << 0; // 客户端暂不支持rpc
+        public const byte Compress = 1 << 1; // TODO: 预留标记,暂未实现
+        public const byte HasErrorCode = 1 << 2;
         /// <summary>
         ///     the fixed length of DefaultPacketHeader
         /// </summary>
@@ -52,6 +59,8 @@ namespace gnet_csharp
         ///     24 bit for packet body length, and 8 bit for flags
         /// </summary>
         private uint m_LenAndFlags;
+
+        private uint m_ErrorCode;
 
         public DefaultPacketHeader()
         {
@@ -76,6 +85,11 @@ namespace gnet_csharp
             return Convert.ToByte(m_LenAndFlags >> 24);
         }
 
+        public bool HasFlag(byte flag)
+        {
+            return (this.Flags() & flag) == flag;
+        }
+
         public void ReadFrom(ArraySegment<byte> packetHeaderData)
         {
             m_LenAndFlags = BitConverter.ToUInt32(packetHeaderData.Array, packetHeaderData.Offset);
@@ -96,6 +110,7 @@ namespace gnet_csharp
     public class ProtoPacket : IPacket
     {
         private ushort m_Command;
+        private uint m_ErrorCode;
         private IMessage m_Message;
         private byte[] m_StreamData;
 
@@ -110,15 +125,28 @@ namespace gnet_csharp
             m_Message = message;
         }
 
-        public ProtoPacket(ushort command, byte[] streamData)
+        public ProtoPacket(ushort command, IMessage message, uint errorCode)
         {
             m_Command = command;
+            m_ErrorCode = errorCode;
+            m_Message = message;
+        }
+
+        public ProtoPacket(ushort command, byte[] streamData, uint errorCode)
+        {
+            m_Command = command;
+            m_ErrorCode = errorCode;
             m_StreamData = streamData;
         }
 
         public ushort Command()
         {
             return m_Command;
+        }
+
+        public uint ErrorCode()
+        {
+            return this.m_ErrorCode;
         }
 
         public IMessage Message()
