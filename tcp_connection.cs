@@ -30,6 +30,7 @@ namespace gnet_csharp
             m_ReadBuffer = new byte[m_Config.RecvBufferSize];
         }
 
+        // 异步连接
         public bool Connect(string address)
         {
             if (m_TcpClient != null)
@@ -65,7 +66,15 @@ namespace gnet_csharp
             m_IsConnected = false;
             Interlocked.Exchange(ref m_IsClosed, 0);
             Console.WriteLine("BeginConnect:" + address);
-            m_TcpClient.BeginConnect(host, port, onAsyncConnected, this);
+            try
+            {
+                m_TcpClient.BeginConnect(host, port, onAsyncConnected, this);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("BeginConnectErr:" + ex.Message);
+                return false;
+            }
             return true;
         }
 
